@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>10초 루프</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='13' fill='%23ffc04d'/%3E%3Cpath d='M16 16V7' stroke='%23120f24' stroke-width='3' stroke-linecap='round'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='%23120f24'/%3E%3C/svg%3E">
+<meta name="description" content="10초마다 시간이 되감기는 퍼즐 게임. 과거의 나와 협동해 방을 빠져나가세요.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<div class="app">
+
+  <section class="screen title-screen" id="screen-title">
+    <header class="title-head">
+      <p class="eyebrow">TEN SECOND LOOP · 퍼즐</p>
+      <h1 class="logo" aria-label="10초 루프">
+        <span class="logo-num">10초</span>
+        <span class="logo-word" data-echo="루프">루프</span>
+      </h1>
+      <p class="tagline">10초가 지나면 시간이 처음으로 되감겨요. 방금 전의 나는 <b>메아리</b>로 남아 똑같이 다시 움직이죠. 과거의 나들과 손발을 맞춰 방을 빠져나가세요.</p>
+      <div class="title-actions">
+        <button type="button" class="btn primary" id="btn-play">시작하기</button>
+        <p class="title-stats" id="title-stats"></p>
+      </div>
+    </header>
+
+    <section class="levels" aria-labelledby="levels-title">
+      <h2 class="section-label" id="levels-title">스테이지</h2>
+      <div class="level-grid" id="level-grid"></div>
+    </section>
+
+    <section class="howto" aria-labelledby="howto-title">
+      <h2 class="section-label" id="howto-title">조작법</h2>
+      <dl class="keys">
+        <div><dt><kbd>←</kbd><kbd>↑</kbd><kbd>↓</kbd><kbd>→</kbd> / <kbd>WASD</kbd></dt><dd>이동. 처음 움직이는 순간 시간이 흐르기 시작해요.</dd></div>
+        <div><dt><kbd>Space</kbd></dt><dd>제자리에서 시간만 흘려보내기</dd></div>
+        <div><dt><kbd>Enter</kbd></dt><dd>지금 루프를 끝내고 메아리로 남기기</dd></div>
+        <div><dt><kbd>R</kbd></dt><dd>이번 루프만 다시 (메아리는 그대로)</dd></div>
+        <div><dt><kbd>Z</kbd></dt><dd>마지막 메아리 지우기</dd></div>
+        <div><dt><kbd>F</kbd> 누르고 있기</dt><dd>3배 빨리 감기</dd></div>
+        <div><dt><kbd>Esc</kbd> · <kbd>M</kbd></dt><dd>스테이지 목록 · 소리 켜고 끄기</dd></div>
+      </dl>
+    </section>
+  </section>
+
+  <section class="screen game-screen" id="screen-game" hidden>
+    <header class="hud">
+      <button type="button" class="chip" id="btn-menu" aria-label="스테이지 목록으로">목록</button>
+      <div class="stage">
+        <span class="stage-no" id="stage-no">01</span>
+        <span class="stage-name" id="stage-name"></span>
+      </div>
+      <div class="meta">
+        <span>루프 <b id="loop-no">1</b></span>
+        <span>메아리 <b id="ghost-count">0</b>/<b id="ghost-max">0</b></span>
+      </div>
+      <div class="counter-box" aria-hidden="true">
+        <span class="counter-play">▶</span>
+        <span class="counter" id="counter">10.00</span>
+      </div>
+      <button type="button" class="chip" id="btn-mute" aria-pressed="false">소리 켜짐</button>
+    </header>
+
+    <div class="tracks" id="tracks" aria-hidden="true"></div>
+
+    <div class="board-wrap">
+      <canvas id="board" aria-label="게임 화면"></canvas>
+      <p class="banner" id="banner" hidden></p>
+    </div>
+
+    <p class="hint" id="hint"></p>
+
+    <div class="controls">
+      <div class="pad" aria-label="방향 버튼">
+        <button type="button" class="pad-btn d-up" data-dir="1" aria-label="위">▲</button>
+        <button type="button" class="pad-btn d-left" data-dir="4" aria-label="왼쪽">◀</button>
+        <button type="button" class="pad-btn d-down" data-dir="3" aria-label="아래">▼</button>
+        <button type="button" class="pad-btn d-right" data-dir="2" aria-label="오른쪽">▶</button>
+      </div>
+      <div class="actions">
+        <button type="button" class="act end" id="btn-end"><kbd>Enter</kbd>루프 끝내기</button>
+        <button type="button" class="act" id="btn-restart"><kbd>R</kbd>다시</button>
+        <button type="button" class="act" id="btn-undo"><kbd>Z</kbd>메아리 지우기</button>
+        <button type="button" class="act" id="btn-ff"><kbd>F</kbd>빨리 감기</button>
+      </div>
+    </div>
+  </section>
+
+  <div class="modal" id="modal-clear" role="dialog" aria-modal="true" aria-labelledby="clear-title" hidden>
+    <div class="modal-card">
+      <p class="eyebrow">ESCAPED</p>
+      <h2 class="modal-title" id="clear-title">탈출 성공</h2>
+      <p class="badge" id="clear-badge">★ 최소 메아리</p>
+      <dl class="stats">
+        <div><dt>쓴 메아리</dt><dd id="clear-ghosts">0</dd></div>
+        <div><dt>최소 메아리</dt><dd id="clear-par">0</dd></div>
+        <div><dt>루프</dt><dd id="clear-loops">1</dd></div>
+      </dl>
+      <p class="modal-note" id="clear-note"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn primary" id="btn-next" data-primary>다음 스테이지</button>
+        <button type="button" class="btn" id="btn-retry">다시 하기</button>
+        <button type="button" class="btn ghost" id="btn-list">목록</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal" id="modal-end" role="dialog" aria-modal="true" aria-labelledby="end-title" hidden>
+    <div class="modal-card">
+      <p class="eyebrow">THE LOOP IS OVER</p>
+      <h2 class="modal-title" id="end-title">모든 루프를 빠져나왔어요</h2>
+      <p class="modal-note">수많은 나와 함께 여기까지 왔어요. 최소 메아리로 탈출한 스테이지</p>
+      <p class="end-stars" id="end-stars">0 / 12</p>
+      <div class="modal-actions">
+        <button type="button" class="btn primary" id="btn-end-title" data-primary>스테이지 목록</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+<script src="js/sim.js"></script>
+<script src="js/levels.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/render.js"></script>
+<script src="js/game.js"></script>
+</body>
+</html>

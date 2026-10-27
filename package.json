@@ -1,0 +1,10 @@
+{
+  "name": "ten-second-loop",
+  "version": "1.0.0",
+  "description": "10초마다 시간이 되감기는 퍼즐 게임",
+  "private": true,
+  "scripts": {
+    "test": "node tests/verify.js",
+    "start": "python3 -m http.server 8000"
+  }
+}
