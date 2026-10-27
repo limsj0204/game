@@ -11,6 +11,11 @@ const DEFS = require('../js/levels.js');
 function expand(script) {
   const out = [];
   for (const tok of script.trim().split(/\s+/).filter(Boolean)) {
+    const h = /^h([UDLR])$/.exec(tok);
+    if (h) {
+      out.push({ hold: 'URDL'.indexOf(h[1]) + 1 });
+      continue;
+    }
     const m = /^([UDLRwX])(\d*)$/.exec(tok);
     if (!m) throw new Error(`알 수 없는 풀이 토큰: ${tok}`);
     const n = m[2] ? Number(m[2]) : 1;
@@ -33,12 +38,12 @@ function runLoop(level, recs, script) {
     const p = w.player;
     const px = p.x;
     const py = p.y;
-    Sim.step(w, head && head.dir ? head.dir : 0);
+    Sim.step(w, head ? head.dir || head.hold || 0 : 0);
     if (!head) continue;
     if (head.dir && (p.x !== px || p.y !== py)) q.shift();
     else if (head.wait != null && --head.wait <= 0) q.shift();
   }
-  return { w, left: q.length };
+  return { w, left: q.filter((c) => !c.hold).length };
 }
 
 function cloneWorld(w) {

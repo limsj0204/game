@@ -403,7 +403,13 @@
     }
     const ghosts = [];
     w.ents.forEach((e, i) => {
-      if (e.ghost) ghosts.push({ x: ents[i].x, y: ents[i].y, id: e.id, done: w.tick >= e.rec.length });
+      if (e.ghost) {
+        ghosts.push({
+          x: ents[i].x, y: ents[i].y, id: e.id,
+          done: w.tick >= e.rec.length,
+          push: S.mode === 'run' && e.blocked ? e.dir : 0,
+        });
+      }
     });
     const pp = ents[ents.length - 1];
     let progressK = w.tick / S.L.limit;
@@ -419,7 +425,7 @@
       paths: S.paths,
       boxes,
       ghosts,
-      present: { x: pp.x, y: pp.y, squash: S.squash },
+      present: { x: pp.x, y: pp.y, squash: S.squash, push: S.mode === 'run' && w.player.blocked ? w.player.dir : 0 },
       particles: S.particles,
       shake: S.shake,
       rewindK: S.rewind ? S.rewind.t / S.rewind.dur : 0,

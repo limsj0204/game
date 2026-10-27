@@ -236,9 +236,38 @@
       ctx.fillRect(x + ts * 0.1, y + ts * 0.02, s - ts * 0.2, Math.max(1, ts * 0.04));
     }
 
+    // 막힌 쪽으로 계속 밀고 있으면 그쪽으로 몸을 기울이고 화살표를 띄운다.
+    function lean(dir, t) {
+      if (!dir) return [0, 0];
+      const [dx, dy] = window.LoopSim.DIRS[dir];
+      const k = ts * (0.07 + 0.025 * Math.sin(t * 20));
+      return [dx * k, dy * k];
+    }
+
+    function drawChevron(cx, cy, dir, color, t) {
+      if (!dir) return;
+      const [dx, dy] = window.LoopSim.DIRS[dir];
+      const d = ts * (0.47 + 0.03 * Math.sin(t * 20));
+      const s = ts * 0.1;
+      const x = cx + dx * d;
+      const y = cy + dy * d;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = Math.max(1.5, ts * 0.055);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x - dx * s + dy * s, y - dy * s - dx * s);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x - dx * s - dy * s, y - dy * s + dx * s);
+      ctx.stroke();
+      ctx.lineCap = 'butt';
+      ctx.lineJoin = 'miter';
+    }
+
     function drawGhost(e, t) {
-      const cx = px(e.x + 0.5);
-      const cy = py(e.y + 0.5) + Math.sin(t * 4 + e.id) * ts * 0.03;
+      const [lx, ly] = lean(e.push, t);
+      const cx = px(e.x + 0.5) + lx;
+      const cy = py(e.y + 0.5) + ly + Math.sin(t * 4 + e.id) * ts * 0.03;
       const r = ts * 0.3;
       // 테이프 잔상처럼 살짝 어긋난 색 테두리
       ctx.lineWidth = Math.max(1, ts * 0.05);
@@ -258,6 +287,7 @@
       ctx.beginPath();
       ctx.arc(cx, cy, r, 0, Math.PI * 2);
       ctx.stroke();
+      drawChevron(cx, cy, e.push, PAL.echo, t);
       ctx.fillStyle = PAL.echo;
       ctx.font = `600 ${Math.round(ts * 0.28)}px "IBM Plex Mono", ui-monospace, monospace`;
       ctx.textAlign = 'center';
@@ -266,8 +296,9 @@
     }
 
     function drawPresent(e, view) {
-      const cx = px(e.x + 0.5);
-      const cy = py(e.y + 0.5);
+      const [lx, ly] = lean(e.push, view.t);
+      const cx = px(e.x + 0.5) + lx;
+      const cy = py(e.y + 0.5) + ly;
       const r = ts * 0.32;
       const sq = e.squash || 0;
       ctx.save();
@@ -312,6 +343,7 @@
       ctx.fill();
       ctx.restore();
       ctx.lineCap = 'butt';
+      drawChevron(cx, cy, e.push, PAL.present, view.t);
     }
 
     function drawParticles(list) {
