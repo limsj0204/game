@@ -13,7 +13,7 @@
     presentDeep: '#c27a12',
     echo: '#7ee8d8',
     exit: '#fff1cf',
-    colors: ['#ff5d7a', '#4aa8ff', '#c8e05a'],
+    colors: ['#ff5d7a', '#4aa8ff', '#c8e05a', '#e9e3ff'],
     box: '#c08f5c',
     boxDark: '#7d5934',
     boxLight: '#e3b67f',
@@ -135,7 +135,7 @@
       });
     }
 
-    function drawDoors(L, amt) {
+    function drawDoors(L, amt, tick) {
       L.doors.forEach((d, i) => {
         const col = PAL.colors[d.c];
         const x = px(d.x);
@@ -145,36 +145,110 @@
         ctx.strokeStyle = alpha(col, 0.55);
         ctx.lineWidth = Math.max(1, ts * 0.04);
         ctx.strokeRect(x + ts * 0.08, y + ts * 0.08, ts * 0.84, ts * 0.84);
-        if (a >= 0.99) return;
-        // 양쪽으로 갈라지며 열린다.
-        const half = (ts * 0.84 / 2) * (1 - a);
-        const top = y + ts * 0.08;
-        const h = ts * 0.84;
-        [[x + ts * 0.08, half], [x + ts * 0.92 - half, half]].forEach(([lx, w]) => {
-          ctx.save();
-          ctx.beginPath();
-          ctx.rect(lx, top, w, h);
-          ctx.clip();
-          ctx.fillStyle = alpha(col, 0.88);
-          ctx.fillRect(lx, top, w, h);
-          ctx.strokeStyle = alpha(PAL.ink, 0.45);
-          ctx.lineWidth = Math.max(1, ts * 0.07);
-          ctx.beginPath();
-          if (d.inv) {
-            for (let k = -h; k < ts * 2; k += ts * 0.24) {
-              ctx.moveTo(x + k, top);
-              ctx.lineTo(x + k + h, top + h);
-            }
-          } else {
-            for (let k = ts * 0.22; k < h; k += ts * 0.22) {
-              ctx.moveTo(lx, top + k);
-              ctx.lineTo(lx + w, top + k);
-            }
-          }
-          ctx.stroke();
-          ctx.restore();
-        });
+        if (a < 0.99) drawLeaves(d, x, y, a, col);
+        if (d.clock) drawClockFace(d, x, y, a, tick);
       });
+    }
+
+    // 양쪽으로 갈라지며 열린다.
+    function drawLeaves(d, x, y, a, col) {
+      const half = (ts * 0.84 / 2) * (1 - a);
+      const top = y + ts * 0.08;
+      const h = ts * 0.84;
+      [[x + ts * 0.08, half], [x + ts * 0.92 - half, half]].forEach(([lx, w]) => {
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(lx, top, w, h);
+        ctx.clip();
+        ctx.fillStyle = alpha(col, 0.88);
+        ctx.fillRect(lx, top, w, h);
+        ctx.strokeStyle = alpha(PAL.ink, 0.45);
+        ctx.lineWidth = Math.max(1, ts * 0.07);
+        ctx.beginPath();
+        if (d.inv) {
+          for (let k = -h; k < ts * 2; k += ts * 0.24) {
+            ctx.moveTo(x + k, top);
+            ctx.lineTo(x + k + h, top + h);
+          }
+        } else if (!d.clock) {
+          for (let k = ts * 0.22; k < h; k += ts * 0.22) {
+            ctx.moveTo(lx, top + k);
+            ctx.lineTo(lx + w, top + k);
+          }
+        }
+        ctx.stroke();
+        ctx.restore();
+      });
+    }
+
+    // 시계 문: 숫자와, 열릴 때까지(열려 있으면 닫힐 때까지) 남은 시간 막대
+    function drawClockFace(d, x, y, a, tick) {
+      const TPS = window.LoopSim.TPS;
+      const opensAt = d.clock * TPS;
+      const live = tick >= opensAt && tick < opensAt + TPS;
+      let k = 0;
+      if (tick < opensAt) k = tick / opensAt;
+      else if (live) k = 1 - (tick - opensAt) / TPS;
+      const open = a > 0.5;
+      ctx.fillStyle = open ? PAL.colors[d.c] : PAL.ink;
+      ctx.font = `600 ${Math.round(ts * 0.44)}px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(d.clock), x + ts / 2, y + ts * 0.45);
+      const bw = ts * 0.6;
+      const bx = x + ts * 0.2;
+      const by = y + ts * 0.74;
+      const bh = Math.max(2, ts * 0.07);
+      ctx.fillStyle = open ? alpha(PAL.colors[d.c], 0.25) : alpha(PAL.ink, 0.3);
+      ctx.fillRect(bx, by, bw, bh);
+      ctx.fillStyle = live ? PAL.present : PAL.ink;
+      ctx.fillRect(bx, by, bw * k, bh);
+    }
+
+    // 메아리 막: 메아리 색 물결
+    function drawBarriers(L, t) {
+      ctx.lineWidth = Math.max(1, ts * 0.04);
+      for (let gy = 0; gy < L.h; gy++) {
+        for (let gx = 0; gx < L.w; gx++) {
+          if (L.grid[gy * L.w + gx] !== window.LoopSim.BARRIER) continue;
+          const x = px(gx);
+          const y = py(gy);
+          ctx.fillStyle = alpha(PAL.echo, 0.1);
+          ctx.fillRect(x, y, ts, ts);
+          ctx.strokeStyle = alpha(PAL.echo, 0.6);
+          for (let i = 0; i < 3; i++) {
+            const cx = x + ts * (0.25 + i * 0.25);
+            ctx.beginPath();
+            for (let s = 0; s <= 8; s++) {
+              const yy = y + (ts * s) / 8;
+              const xx = cx + Math.sin(s * 0.9 + t * 3 + i * 2) * ts * 0.05;
+              if (s) ctx.lineTo(xx, yy);
+              else ctx.moveTo(xx, yy);
+            }
+            ctx.stroke();
+          }
+        }
+      }
+    }
+
+    // 지금 녹화 중인 입력이 다음 루프에서 메아리를 데려갈 자리
+    function drawProjection(p, t) {
+      const cx = px(p.x + 0.5);
+      const cy = py(p.y + 0.5);
+      ctx.save();
+      ctx.strokeStyle = alpha(PAL.echo, 0.85);
+      ctx.lineWidth = Math.max(1.5, ts * 0.05);
+      ctx.setLineDash([ts * 0.09, ts * 0.07]);
+      ctx.lineDashOffset = -t * ts * 0.4;
+      ctx.beginPath();
+      ctx.arc(cx, cy, ts * 0.3, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = alpha(PAL.echo, 0.85);
+      ctx.font = `600 ${Math.round(ts * 0.24)}px "IBM Plex Mono", ui-monospace, monospace`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(String(p.id + 1), cx, cy + ts * 0.01);
     }
 
     function drawPaths(paths) {
@@ -400,12 +474,14 @@
         ctx.translate((Math.random() - 0.5) * view.shake * ts, (Math.random() - 0.5) * view.shake * ts);
       }
       drawBoard(L);
+      drawBarriers(L, view.t);
       drawExit(L, view.t, view.won);
       drawPlates(L, view.plateOn, view.t);
       if (view.mode === 'ready' || view.mode === 'run') drawPaths(view.paths);
-      drawDoors(L, view.doorAmt);
+      drawDoors(L, view.doorAmt, view.tick);
       view.boxes.forEach(drawBox);
       view.ghosts.forEach((g) => drawGhost(g, view.t));
+      if (view.projection) drawProjection(view.projection, view.t);
       if (view.present && !view.won) drawPresent(view.present, view);
       drawParticles(view.particles);
       ctx.setTransform(1, 0, 0, 1, 0, 0);

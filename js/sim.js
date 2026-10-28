@@ -16,7 +16,8 @@
   // 0 정지, 1 위, 2 오른쪽, 3 아래, 4 왼쪽
   const DIRS = [[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]];
 
-  const FLOOR = 0, WALL = 1, PLATE = 2, DOOR = 3, EXIT = 4;
+  const FLOOR = 0, WALL = 1, PLATE = 2, DOOR = 3, EXIT = 4, BARRIER = 5;
+  const CLOCK = 3; // 시계 문이 쓰는 색 번호
 
   function parseLevel(def, index) {
     const rows = def.map;
@@ -47,7 +48,13 @@
           doorAt[i] = doors.length;
           const inv = 'xyz'.includes(ch);
           doors.push({ x, y, c: (inv ? 'xyz' : 'ABC').indexOf(ch), inv });
-        } else if (ch === 'S') start = { x, y };
+        } else if (ch >= '1' && ch <= '9') {
+          // 시계 문: 루프가 시작된 지 N초가 되면 1초 동안 열린다.
+          t = DOOR;
+          doorAt[i] = doors.length;
+          doors.push({ x, y, c: CLOCK, inv: false, clock: Number(ch) });
+        } else if (ch === '~') t = BARRIER; // 메아리 막: 메아리만 지나간다.
+        else if (ch === 'S') start = { x, y };
         else if (ch === 'E') {
           t = EXIT;
           exit = { x, y };
@@ -67,6 +74,7 @@
       limit: Math.round((def.time || 10) * TPS),
       maxGhosts: def.ghosts == null ? 1 : def.ghosts,
       par: def.par || 0,
+      chapter: def.chapter || '',
       solution: def.solution || [],
     };
   }
@@ -100,11 +108,13 @@
     return x >= 0 && y >= 0 && x < L.w && y < L.h;
   }
 
-  function solid(w, x, y) {
+  // ghostOk: 메아리는 메아리 막을 지나갈 수 있다.
+  function solid(w, x, y, ghostOk) {
     const L = w.level;
     if (!inside(L, x, y)) return true;
     const t = L.grid[y * L.w + x];
     if (t === WALL) return true;
+    if (t === BARRIER) return !ghostOk;
     if (t === DOOR) return !w.doorOpen[L.doorAt[y * L.w + x]];
     return false;
   }
@@ -139,7 +149,7 @@
     e.dir = d;
     const tx = e.x + dx;
     const ty = e.y + dy;
-    let ok = !solid(w, tx, ty);
+    let ok = !solid(w, tx, ty, e.ghost);
     const box = ok ? boxAt(w, tx, ty) : null;
     if (box) {
       const bx = tx + dx;
@@ -190,9 +200,12 @@
       w.active[c] = group.length > 0 && group.every((i) => pressed[i]);
     }
 
-    // 문은 무언가가 걸쳐 있으면 닫히지 않는다.
+    // 문은 무언가가 걸쳐 있으면 닫히지 않는다. 여기서 정한 상태는 다음 틱에 쓰인다.
+    const now = initial ? 0 : w.tick + 1;
     L.doors.forEach((d, i) => {
-      const want = d.inv ? !w.active[d.c] : w.active[d.c];
+      let want;
+      if (d.clock) want = now >= d.clock * TPS && now < (d.clock + 1) * TPS;
+      else want = d.inv ? !w.active[d.c] : w.active[d.c];
       const open = want || occupied(w, d.x, d.y);
       if (!initial && open !== w.doorOpen[i]) {
         w.events.push({ type: open ? 'open' : 'close', i, c: d.c, x: d.x, y: d.y });
@@ -208,6 +221,16 @@
     for (const e of w.ents) if (e.mt > 0) e.mt--;
     for (const b of w.boxes) if (b.mt > 0) b.mt--;
 
+    // 출구에 도착한 순간 탈출한다. 방향키를 계속 누르고 있어도 지나쳐 가지 않는다.
+    const p = w.player;
+    const ex = w.level.exit;
+    if (p.mt === 0 && p.x === ex.x && p.y === ex.y) {
+      w.won = true;
+      w.events.push({ type: 'win', x: ex.x, y: ex.y });
+      w.tick++;
+      return;
+    }
+
     w.player.rec.push(action);
     for (const e of w.ents) {
       const a = e.ghost ? (w.tick < e.rec.length ? e.rec[w.tick] : 0) : action;
@@ -216,13 +239,6 @@
     }
 
     updateSwitches(w, false);
-
-    const p = w.player;
-    const ex = w.level.exit;
-    if (p.mt === 0 && p.x === ex.x && p.y === ex.y) {
-      w.won = true;
-      w.events.push({ type: 'win', x: ex.x, y: ex.y });
-    }
     w.tick++;
   }
 
@@ -234,7 +250,7 @@
 
   return {
     TPS, MOVE_TICKS, DIRS,
-    FLOOR, WALL, PLATE, DOOR, EXIT,
+    FLOOR, WALL, PLATE, DOOR, EXIT, BARRIER, CLOCK,
     parseLevel, createWorld, step, renderPos, solid,
   };
 });

@@ -45,7 +45,7 @@
     mode: 'ready', // ready | run | rewind | won
     acc: 0,
     hist: [],
-    curPath: [],
+    shadow: null,
     rewind: null,
     particles: [],
     doorAmt: [],
@@ -104,6 +104,12 @@
         Sound.play('ui');
         startLevel(i);
       });
+      if (L.chapter) {
+        const h = document.createElement('h3');
+        h.className = 'chapter';
+        h.textContent = L.chapter;
+        grid.appendChild(h);
+      }
       grid.appendChild(b);
     });
     const next = LEVELS.findIndex((_, i) => !cleared(i));
@@ -140,12 +146,39 @@
     };
   }
 
+  // 지금의 내가 아무것도 하지 않을 때 메아리들이 지나갈 길. 막 너머나 열리는 문까지 반영된다.
+  function previewPaths() {
+    const w = Sim.createWorld(S.L, S.recs);
+    const paths = S.recs.map(() => [{ x: S.L.start.x, y: S.L.start.y }]);
+    while (w.tick < S.L.limit) {
+      Sim.step(w, 0);
+      paths.forEach((path, i) => {
+        const e = w.ents[i];
+        const last = path[path.length - 1];
+        if (e.x !== last.x || e.y !== last.y) path.push({ x: e.x, y: e.y });
+      });
+    }
+    return paths;
+  }
+
+  // 녹화 중인 입력이 데려갈 다음 메아리의 자리. 지금의 나와 겹치면 그리지 않는다.
+  function projection() {
+    if (S.mode !== 'run' || !S.shadow) return null;
+    const a = S.acc * Sim.TPS;
+    const g = Sim.renderPos(S.shadow.ents[S.recs.length], a);
+    const p = Sim.renderPos(S.world.player, a);
+    if (Math.abs(g.x - p.x) + Math.abs(g.y - p.y) < 0.3) return null;
+    return { x: g.x, y: g.y, id: S.recs.length };
+  }
+
   function newLoop() {
     S.world = Sim.createWorld(S.L, S.recs);
     S.mode = 'ready';
     S.acc = 0;
     S.hist = [snapshot()];
-    S.curPath = [{ x: S.L.start.x, y: S.L.start.y }];
+    S.paths = previewPaths();
+    // 메아리 자리가 남아 있으면, 지금 녹화가 다음 루프에서 어디로 갈지 따로 돌려 본다.
+    S.shadow = S.recs.length < S.L.maxGhosts ? Sim.createWorld(S.L, S.recs.concat([S.world.player.rec])) : null;
     S.doorAmt = S.world.doorOpen.map((o) => (o ? 1 : 0));
     S.lastSec = Math.ceil(S.L.limit / Sim.TPS);
     S.queued = 0;
@@ -169,8 +202,7 @@
     Sim.step(w, S.queued || held);
     if (wasIdle) S.queued = 0;
     S.hist.push(snapshot());
-    const last = S.curPath[S.curPath.length - 1];
-    if (p.x !== last.x || p.y !== last.y) S.curPath.push({ x: p.x, y: p.y });
+    if (S.shadow) Sim.step(S.shadow, 0);
     handleEvents(w.events);
 
     const sec = Math.ceil((S.L.limit - w.tick) / Sim.TPS);
@@ -190,7 +222,6 @@
     if (keep) {
       if (S.recs.length < S.L.maxGhosts) {
         S.recs.push(rec.slice());
-        S.paths.push(S.curPath.slice());
         added = true;
       } else if (S.L.maxGhosts > 0) {
         msg = '메아리 자리가 꽉 찼어요. Z로 마지막 메아리를 지울 수 있어요.';
@@ -232,7 +263,6 @@
       return;
     }
     S.recs.pop();
-    S.paths.pop();
     Sound.play('ui');
     if (S.mode === 'run') endLoop(false);
     else newLoop();
@@ -429,6 +459,8 @@
       particles: S.particles,
       shake: S.shake,
       rewindK: S.rewind ? S.rewind.t / S.rewind.dur : 0,
+      tick: w.tick,
+      projection: projection(),
     };
   }
 
