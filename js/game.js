@@ -295,7 +295,7 @@
     $('clear-loops').textContent = S.loops;
     $('clear-badge').hidden = used > L.par;
     $('clear-note').textContent = used > L.par
-      ? `메아리 ${L.par}명으로도 풀 수 있어요.`
+      ? (L.par === 0 ? '메아리 없이도 풀 수 있어요.' : `메아리 ${L.par}명으로도 풀 수 있어요.`)
       : L.par === 0 ? '메아리 없이 탈출했어요.' : '최소 메아리로 탈출했어요.';
     $('btn-next').textContent = last ? '엔딩 보기' : '다음 스테이지';
     openModal('modal-clear');
