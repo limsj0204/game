@@ -61,6 +61,7 @@ function cloneWorld(w) {
     platePressed: w.platePressed.slice(),
     doorOpen: w.doorOpen.slice(),
     active: w.active.slice(),
+    filled: w.filled.slice(),
   });
 }
 
@@ -68,7 +69,7 @@ function cloneWorld(w) {
 // 한 번의 전이는 한 칸 이동이나 한 칸 이동만큼(9틱) 기다리기다. 시계 문이 있어 시각도 상태에 넣는다.
 function solvableAlone(level) {
   const ex = level.exit;
-  const key = (w) => [w.tick, w.player.x, w.player.y, ...w.boxes.map((b) => `${b.x},${b.y}`), w.doorOpen.join('')].join('|');
+  const key = (w) => [w.tick, w.player.x, w.player.y, ...w.boxes.map((b) => `${b.x},${b.y}`), w.doorOpen.join(''), w.toggle, w.filled.join('')].join('|');
   let frontier = [Sim.createWorld(level, [])];
   const seen = new Set();
   while (frontier.length) {

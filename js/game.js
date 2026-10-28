@@ -143,6 +143,8 @@
     return {
       ents: w.ents.map((e) => Sim.renderPos(e)),
       boxes: w.boxes.map((b) => Sim.renderPos(b)),
+      filled: w.filled.slice(),
+      toggle: w.toggle,
     };
   }
 
@@ -353,6 +355,12 @@
         if (!opened) Sound.play('open');
         opened = true;
         burst(e.x + 0.5, e.y + 0.5, PAL.colors[e.c], 5, 1.2, 0.07, 0.4);
+      } else if (e.type === 'sink') {
+        Sound.play('sink');
+        burst(e.x + 0.5, e.y + 0.5, PAL.box, 10, 1.4, 0.09, 0.45);
+      } else if (e.type === 'toggle') {
+        Sound.play('toggle', e.on);
+        ring(e.x + 0.5, e.y + 0.5, PAL.colors[Sim.TOGGLE], 0.42);
       } else if (e.type === 'close') {
         if (!closed) Sound.play('close');
         closed = true;
@@ -421,11 +429,13 @@
     const w = S.world;
     let ents;
     let boxes;
+    let look = w;
     if (S.mode === 'rewind') {
       const k = easeInOut(S.rewind.t / S.rewind.dur);
       const snap = S.hist[Math.round((1 - k) * (S.hist.length - 1))];
       ents = snap.ents;
       boxes = snap.boxes;
+      look = snap;
     } else {
       const a = S.mode === 'run' ? S.acc * Sim.TPS : 0;
       ents = w.ents.map((e) => Sim.renderPos(e, a));
@@ -460,6 +470,8 @@
       shake: S.shake,
       rewindK: S.rewind ? S.rewind.t / S.rewind.dur : 0,
       tick: w.tick,
+      filled: look.filled,
+      toggle: look.toggle,
       projection: projection(),
     };
   }

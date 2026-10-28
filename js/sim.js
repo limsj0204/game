@@ -16,8 +16,9 @@
   // 0 정지, 1 위, 2 오른쪽, 3 아래, 4 왼쪽
   const DIRS = [[0, 0], [0, -1], [1, 0], [0, 1], [-1, 0]];
 
-  const FLOOR = 0, WALL = 1, PLATE = 2, DOOR = 3, EXIT = 4, BARRIER = 5;
-  const CLOCK = 3; // 시계 문이 쓰는 색 번호
+  const FLOOR = 0, WALL = 1, PLATE = 2, DOOR = 3, EXIT = 4, BARRIER = 5, PIT = 6, SWITCH = 7;
+  const CLOCK = 3;  // 시계 문이 쓰는 색 번호
+  const TOGGLE = 4; // 토글 스위치 문이 쓰는 색 번호
 
   function parseLevel(def, index) {
     const rows = def.map;
@@ -53,7 +54,14 @@
           t = DOOR;
           doorAt[i] = doors.length;
           doors.push({ x, y, c: CLOCK, inv: false, clock: Number(ch) });
+        } else if (ch === 'T' || ch === 'u') {
+          // 토글 문: 스위치가 켜져 있으면 T가, 꺼져 있으면 u가 열린다.
+          t = DOOR;
+          doorAt[i] = doors.length;
+          doors.push({ x, y, c: TOGGLE, inv: ch === 'u' });
         } else if (ch === '~') t = BARRIER; // 메아리 막: 메아리만 지나간다.
+        else if (ch === '_') t = PIT; // 구덩이: 상자를 밀어 넣으면 메워진다.
+        else if (ch === 't') t = SWITCH; // 토글 스위치: 밟을 때마다 켜짐과 꺼짐이 바뀐다.
         else if (ch === 'S') start = { x, y };
         else if (ch === 'E') {
           t = EXIT;
@@ -97,6 +105,8 @@
       platePressed: level.plates.map(() => false),
       doorOpen: level.doors.map(() => false),
       active: [false, false, false],
+      toggle: false,
+      filled: new Uint8Array(level.w * level.h),
       events: [],
       won: false,
     };
@@ -108,13 +118,14 @@
     return x >= 0 && y >= 0 && x < L.w && y < L.h;
   }
 
-  // ghostOk: 메아리는 메아리 막을 지나갈 수 있다.
-  function solid(w, x, y, ghostOk) {
+  // ghostOk: 메아리는 메아리 막을 지나갈 수 있다. isBox: 상자는 구덩이에 들어갈 수 있다.
+  function solid(w, x, y, ghostOk, isBox) {
     const L = w.level;
     if (!inside(L, x, y)) return true;
     const t = L.grid[y * L.w + x];
     if (t === WALL) return true;
     if (t === BARRIER) return !ghostOk;
+    if (t === PIT) return !isBox && !w.filled[y * L.w + x];
     if (t === DOOR) return !w.doorOpen[L.doorAt[y * L.w + x]];
     return false;
   }
@@ -154,7 +165,7 @@
     if (box) {
       const bx = tx + dx;
       const by = ty + dy;
-      ok = !solid(w, bx, by) && !boxAt(w, bx, by) && !entityAt(w, bx, by);
+      ok = !solid(w, bx, by, false, true) && !boxAt(w, bx, by) && !entityAt(w, bx, by);
       if (ok) {
         startMove(box, bx, by);
         w.events.push({ type: 'push', x: bx, y: by, ghost: e.ghost });
@@ -187,6 +198,25 @@
     w.ents.forEach(mark);
     w.boxes.forEach(mark);
 
+    // 토글 스위치: 무언가 새로 올라설 때마다 상태가 뒤집힌다. 같은 틱에 둘이 올라서면 제자리다.
+    let flips = 0;
+    let flipAt = null;
+    const visit = (m) => {
+      const [x, y] = footTile(m);
+      const i = y * L.w + x;
+      if (!initial && i !== m.prevFoot && L.grid[i] === SWITCH) {
+        flips++;
+        flipAt = { x, y };
+      }
+      m.prevFoot = i;
+    };
+    w.ents.forEach(visit);
+    w.boxes.forEach(visit);
+    if (flips % 2) {
+      w.toggle = !w.toggle;
+      w.events.push({ type: 'toggle', on: w.toggle, x: flipAt.x, y: flipAt.y });
+    }
+
     pressed.forEach((on, i) => {
       if (!initial && on !== w.platePressed[i]) {
         const p = L.plates[i];
@@ -205,6 +235,7 @@
     L.doors.forEach((d, i) => {
       let want;
       if (d.clock) want = now >= d.clock * TPS && now < (d.clock + 1) * TPS;
+      else if (d.c === TOGGLE) want = d.inv ? !w.toggle : w.toggle;
       else want = d.inv ? !w.active[d.c] : w.active[d.c];
       const open = want || occupied(w, d.x, d.y);
       if (!initial && open !== w.doorOpen[i]) {
@@ -220,6 +251,15 @@
     if (w.won) return;
     for (const e of w.ents) if (e.mt > 0) e.mt--;
     for (const b of w.boxes) if (b.mt > 0) b.mt--;
+
+    // 구덩이에 다 들어간 상자는 가라앉아 구덩이를 메운다.
+    w.boxes = w.boxes.filter((b) => {
+      const i = b.y * w.level.w + b.x;
+      if (b.mt > 0 || w.level.grid[i] !== PIT || w.filled[i]) return true;
+      w.filled[i] = 1;
+      w.events.push({ type: 'sink', x: b.x, y: b.y });
+      return false;
+    });
 
     // 출구에 도착한 순간 탈출한다. 방향키를 계속 누르고 있어도 지나쳐 가지 않는다.
     const p = w.player;
@@ -250,7 +290,7 @@
 
   return {
     TPS, MOVE_TICKS, DIRS,
-    FLOOR, WALL, PLATE, DOOR, EXIT, BARRIER, CLOCK,
+    FLOOR, WALL, PLATE, DOOR, EXIT, BARRIER, PIT, SWITCH, CLOCK, TOGGLE,
     parseLevel, createWorld, step, renderPos, solid,
   };
 });

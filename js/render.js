@@ -13,7 +13,7 @@
     presentDeep: '#c27a12',
     echo: '#7ee8d8',
     exit: '#fff1cf',
-    colors: ['#ff5d7a', '#4aa8ff', '#c8e05a', '#e9e3ff'],
+    colors: ['#ff5d7a', '#4aa8ff', '#c8e05a', '#e9e3ff', '#b48cff'],
     box: '#c08f5c',
     boxDark: '#7d5934',
     boxLight: '#e3b67f',
@@ -203,6 +203,78 @@
       ctx.fillRect(bx, by, bw, bh);
       ctx.fillStyle = live ? PAL.present : PAL.ink;
       ctx.fillRect(bx, by, bw * k, bh);
+    }
+
+    // 구덩이: 비어 있으면 깊은 구멍, 메워졌으면 가라앉은 상자 윗면
+    function drawPits(L, filled) {
+      for (let gy = 0; gy < L.h; gy++) {
+        for (let gx = 0; gx < L.w; gx++) {
+          const i = gy * L.w + gx;
+          if (L.grid[i] !== window.LoopSim.PIT) continue;
+          const m = ts * 0.06;
+          const x = px(gx) + m;
+          const y = py(gy) + m;
+          const s = ts - m * 2;
+          if (filled[i]) {
+            ctx.fillStyle = PAL.boxDark;
+            rr(ctx, x, y, s, s, ts * 0.08);
+            ctx.fill();
+            ctx.strokeStyle = alpha(PAL.box, 0.6);
+            ctx.lineWidth = Math.max(1, ts * 0.05);
+            rr(ctx, x + ts * 0.08, y + ts * 0.08, s - ts * 0.16, s - ts * 0.16, ts * 0.05);
+            ctx.stroke();
+            continue;
+          }
+          const g = ctx.createLinearGradient(0, y, 0, y + s);
+          g.addColorStop(0, '#020108');
+          g.addColorStop(1, '#0c0a1d');
+          ctx.fillStyle = g;
+          rr(ctx, x, y, s, s, ts * 0.08);
+          ctx.fill();
+          ctx.strokeStyle = alpha(PAL.wallEdge, 0.8);
+          ctx.lineWidth = Math.max(1, ts * 0.04);
+          ctx.beginPath();
+          ctx.moveTo(x + ts * 0.08, y + ts * 0.06);
+          ctx.lineTo(x + s - ts * 0.08, y + ts * 0.06);
+          ctx.stroke();
+        }
+      }
+    }
+
+    // 토글 스위치: 켜지면 안쪽이 차오른다.
+    function drawSwitches(L, on, t) {
+      const col = PAL.colors[window.LoopSim.TOGGLE];
+      for (let gy = 0; gy < L.h; gy++) {
+        for (let gx = 0; gx < L.w; gx++) {
+          if (L.grid[gy * L.w + gx] !== window.LoopSim.SWITCH) continue;
+          const cx = px(gx + 0.5);
+          const cy = py(gy + 0.5);
+          ctx.save();
+          if (on) {
+            ctx.shadowColor = col;
+            ctx.shadowBlur = ts * 0.5;
+          }
+          ctx.fillStyle = on ? alpha(col, 0.9) : alpha(col, 0.1 + 0.05 * Math.sin(t * 3));
+          ctx.beginPath();
+          ctx.arc(cx, cy, ts * 0.3, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          ctx.strokeStyle = col;
+          ctx.lineWidth = Math.max(1.5, ts * 0.06);
+          ctx.beginPath();
+          ctx.arc(cx, cy, ts * 0.3, 0, Math.PI * 2);
+          ctx.stroke();
+          // 레버: 꺼짐은 왼쪽, 켜짐은 오른쪽으로 기운다.
+          const a = on ? -Math.PI / 4 : (-Math.PI * 3) / 4;
+          ctx.strokeStyle = on ? PAL.ink : col;
+          ctx.lineCap = 'round';
+          ctx.beginPath();
+          ctx.moveTo(cx, cy + ts * 0.08);
+          ctx.lineTo(cx + Math.cos(a) * ts * 0.2, cy + ts * 0.08 + Math.sin(a) * ts * 0.2);
+          ctx.stroke();
+          ctx.lineCap = 'butt';
+        }
+      }
     }
 
     // 메아리 막: 메아리 색 물결
@@ -475,6 +547,8 @@
       }
       drawBoard(L);
       drawBarriers(L, view.t);
+      drawPits(L, view.filled);
+      drawSwitches(L, view.toggle, view.t);
       drawExit(L, view.t, view.won);
       drawPlates(L, view.plateOn, view.t);
       if (view.mode === 'ready' || view.mode === 'run') drawPaths(view.paths);

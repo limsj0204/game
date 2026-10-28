@@ -87,6 +87,14 @@
       noise({ filter: 'bandpass', from: 2000, to: 300, q: 2, dur: 0.18, vol: 0.14 });
       tone({ freq: 110, to: 70, type: 'square', dur: 0.08, vol: 0.05, delay: 0.12 });
     },
+    sink() {
+      noise({ from: 380, to: 90, dur: 0.3, vol: 0.28 });
+      tone({ freq: 140, to: 45, type: 'sine', dur: 0.32, vol: 0.22 });
+    },
+    toggle(on) {
+      tone({ freq: on ? 740 : 494, type: 'square', dur: 0.04, vol: 0.06 });
+      tone({ freq: on ? 988 : 370, type: 'triangle', dur: 0.12, vol: 0.1, delay: 0.04 });
+    },
     tick(urgent) {
       tone({ freq: urgent ? 1760 : 1320, type: 'square', dur: 0.03, vol: urgent ? 0.07 : 0.04 });
     },
